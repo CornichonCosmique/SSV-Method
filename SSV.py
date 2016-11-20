@@ -1,5 +1,10 @@
 #!/usr/bin/python
 # -*- coding:Utf-8 -*-
+
+#    SSV algorithm : performs the Search of the Shared Vector method 
+#    described in Billant et al. (2016) in Tectonophysics
+#    		Copyright (C) 2016 Billant Jérémy
+
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
