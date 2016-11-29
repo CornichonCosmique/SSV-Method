@@ -1,26 +1,6 @@
 #!/usr/bin/python
 # -*- coding:Utf-8 -*-
 
-#    SSV algorithm : performs the Search of the Shared Vector method 
-#    described in Billant et al. (2016) in Tectonophysics
-#    		Copyright (C) 2016 Billant Jérémy
-
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, either version 3 of the License, or
-#    (at your option) any later version.
-#
-#    This program is distributed in the hope that it will be useful,
-#    but WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#    GNU General Public License for more details.
-#
-#    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-
-
-
 import Tkinter as tk
 import tkFileDialog
 import tkMessageBox
@@ -385,7 +365,7 @@ class ssvapp_tk(tk.Tk):
 	#from http://stackoverflow.com/questions/12842693/python-check-for-updates-for-a-program
 	def updateCheck(self):
 		#Gets downloaded version
-		self.versionSource = "1.0"
+		self.versionSource = "1.1"
 		#gets newest version
 		self.updateSource = urllib.urlopen("https://raw.githubusercontent.com/CornichonCosmique/SSV-Method/master/version.txt")
 		self.updateContents = self.updateSource.read()
@@ -455,7 +435,7 @@ class ssvapp_tk(tk.Tk):
 		self.shpsave.set("")
 		self.shpsaveEntry = tk.Entry(self.mainFrameCountour, textvariable=self.shpsave)
 		self.shpsaveEntry.grid(column=1, columnspan=2, row=rowICountour, sticky="EW")
-		self.shpsaveButton = tk.Button(self.mainFrameCountour, text="Select", command=lambda: self.save_file(shpsave,".shp"))
+		self.shpsaveButton = tk.Button(self.mainFrameCountour, text="Select", command=lambda: self.save_file(self.shpsave,".shp"))
 		self.shpsaveButton.grid(column=2, row=rowICountour, sticky="NSEW")
 		
 		rowICountour=rowICountour+1
@@ -553,6 +533,11 @@ class ssvapp_tk(tk.Tk):
 		increment = math.sqrt(gt[1]**2+gt[5]**2)
 		list_z = ""
 		
+		DriverName = "ESRI Shapefile"
+		driver = ogr.GetDriverByName(DriverName)
+		if os.path.exists(output_shapefile):
+			driver.DeleteDataSource(output_shapefile)
+		
 		for elementf in lyr_fault:
 			geomf = elementf.GetGeometryRef()
 			fault_shp = loads(geomf.ExportToWkb())
@@ -564,8 +549,30 @@ class ssvapp_tk(tk.Tk):
 					point = segment.interpolate(distance_along_fault)
 					list_z = list_z+str(self.Val_raster(point.x,point.y,couche,bandes,gt)[0])+" "
 		os.system("gdal_contour -a z -fl "+list_z+DEM+" "+output_shapefile)
-	
-	
+		
+		src_fault = ogr.Open(fault_shapefile)	
+		lyr_fault = src_fault.GetLayer()
+		faults = ogr.Geometry(ogr.wkbLineString)
+		for elementf in lyr_fault:
+			geomf = elementf.GetGeometryRef()
+			faults = faults.Union(geomf)
+		
+		faults_shp = loads(faults.ExportToWkb())
+		contours_shapefile = ogr.Open(output_shapefile,1 )
+		lyr_contours=contours_shapefile.GetLayer()
+		i=0
+		list2del=[]
+		for contour in lyr_contours:
+			geom_contour = contour.GetGeometryRef()
+			contour_shp = loads(geom_contour.ExportToWkb())
+			if not contour_shp.intersects(faults_shp):
+				list2del.append(i)
+			i=i+1
+		for contour_index in reversed(list2del):
+			lyr_contours.DeleteFeature(contour_index)
+				
+			
+
 		
 	#perform apparent offset measurements
 	def apparent_offset_measurements(self,fault_shapefile,confidence_shapefile,DEM,contour_shapefile,distancefmax=None):
@@ -674,7 +681,7 @@ class ssvapp_tk(tk.Tk):
 										left_topo_profil = LineString([offset_point,boundary_left_topo_profil])
 										dist_from_fault_right = []
 										z_right = []
-										for distance_along_profil_droit in  np.arange(0,right_topo_profil.length,increment):
+										for distance_along_profil_droit in np.arange(0,right_topo_profil.length,increment):
 											point = right_topo_profil.interpolate(distance_along_profil_droit)
 											if not point.within(confidence_shp):									
 												dist_from_fault_right.append(distance_along_profil_droit)
@@ -699,9 +706,9 @@ class ssvapp_tk(tk.Tk):
 			wr = csv.writer(output)
 			wr.writerow(['lateral_offset','vertical_offset'])
 			for row in offset_list:
-  			  	wr.writerow(row)
-  	
-  	#read apparent offset measurements in a csv file wrote by this script
+				wr.writerow(row)
+	
+	#read apparent offset measurements in a csv file wrote by this script
 	def read_offsets_file(self,csv_file):
 		with open(csv_file, 'rb') as f:
 			reader = csv.reader(f)
@@ -780,14 +787,11 @@ class ssvapp_tk(tk.Tk):
 		with open(path_to_txt, 'w') as export:
 			for line in param_results_list:
 				export.write('{}\n'.format(line))
-		#with open(path_to_txt, 'wb') as output:
-		#	wr = csv.writer(output, delimiter ='')
-		#	for row in param_results_list:
-  		#	  	wr.writerow(row)
+		
 	
 	#draw 1D and 2D histograms
 	def draw_fig(self,a,b,lateral_offset,vertical_offset,result,hist2dres=None,xbinwidth=None,ybinwidth=None):
-		nullfmt   = NullFormatter()
+		nullfmt = NullFormatter()
 		mpl.rcParams.update({'font.size': 8})
 		# definitions for the axes
 		left, width = 0, 0.70
@@ -882,7 +886,7 @@ class ssvapp_tk(tk.Tk):
 		if self.hist2dres.get() == "" :
 			self.hist2dres.set(100)
 			self.erreur('Number of hexagone\nalong x-axis in 2D histogramm\nset to 100')
- 		if self.histlat.get() == ""  :
+ 		if self.histlat.get() == "" :
  			self.histlat.set(10)
  			self.erreur('Bin size of\nlateral offset histogram\nset to 10 meters')
  		if self.histvert.get() == "" :
@@ -891,7 +895,7 @@ class ssvapp_tk(tk.Tk):
  		if self.outliers.get() == "" :
  			self.outliers.set(0.99)
  			self.erreur('Remove outliers set to 1 percentile')
- 		if self.meanconf.get() == ""   :
+ 		if self.meanconf.get() == "" :
  			self.meanconf.set(0.95)
  			self.erreur('Confidence level of the standard\nerror of the mean offset\nset to 95%')
 		if self.check.get() == 0:
@@ -969,4 +973,3 @@ if __name__ == "__main__":
 	app = ssvapp_tk(None)
 	app.title('SSV Method (Billant et al., 2016)')
 	app.mainloop()
-
